@@ -19,9 +19,7 @@ reg  [31:0] InstrF_reg;
 reg  [31:0] PCF_reg;
 reg  [31:0] PCPlus4F_reg;
 
-// -------------------------
 // Program Counter
-// -------------------------
 Program_counter PC (
     .clk    (clk),
     .rst    (rst),
@@ -29,9 +27,7 @@ Program_counter PC (
     .PC     (PCF)
 );
 
-// -------------------------
 // Instruction Memory
-// -------------------------
 Instruction_Mem IMEM (
     .rst (rst),
     .A   (PCF),
@@ -47,9 +43,7 @@ PC_Adder PC_Adder (
     .Y (PCPlus4F)
 );
 
-// -------------------------
 // IF/ID Pipeline Register
-// -------------------------
 always @(posedge clk) begin
     if (rst) begin
         InstrF_reg   <= 32'h00000000;
@@ -63,9 +57,7 @@ always @(posedge clk) begin
     end
 end
 
-// -------------------------
 // Outputs to Decode stage
-// -------------------------
 assign InstrD   = InstrF_reg;
 assign PCD      = PCF_reg;
 assign PCPlus4D = PCPlus4F_reg;
