@@ -3,7 +3,7 @@ Design of 5-stage pipelined RISC-V processor (IF, ID, EX, MEM, WB) compliant wit
 
 ## Pipeline Datapath
 <img width="1576" height="968" alt="image" src="https://github.com/user-attachments/assets/df21d6db-0cac-48fb-af70-de32828ae396" />
-Source: MERL DSU
+Source: MERL DSU (https://github.com/merldsu/RISCV_Pipeline_Core/tree/main/doc)
 
 ## Implemented Instruction Set (RV32I Subset)
 
