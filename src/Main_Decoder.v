@@ -26,9 +26,9 @@ assign Branch    = (Op == 7'b1100011) ? 1'b1 : 1'b0;        // B - Type
 
 assign Jump      = (Op == 7'b1101111) ? 1'b1 : 1'b0;         // J - Type
 
-  assign ALU_Op    = ((Op == 7'b0000011) |(Op == 7'b0100011)) ? 2'b00 :      // Load / I - Type | Store ( S - Type)  - Load, Store, Immediate ADD
-                      (Op == 7'b1100011) ? 2'b01 :                    // B -Type  - Branch Comnparisions
-                     ((Op == 7'b0110011) |(Op == 7'b0010011)) ? 2'b10 :  2'b00;    // R - Type | I - Type - Decode using funct fields
+assign ALU_Op    = ((Op == 7'b0000011) |(Op == 7'b0100011)) ? 2'b00 :      // Load / I - Type | Store ( S - Type)  - Load, Store, Immediate ADD
+                    (Op == 7'b1100011) ? 2'b01 :                           // B -Type  - Branch Comnparisions
+                   ((Op == 7'b0110011) |(Op == 7'b0010011)) ? 2'b10 :  2'b00;    // R - Type | I - Type - Decode using funct fields
          
 
 endmodule
