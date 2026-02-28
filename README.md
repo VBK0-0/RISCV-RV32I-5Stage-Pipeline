@@ -109,7 +109,6 @@ RV32I is the 32-bit base integer instruction set of RISC-V. It includes:
 ---
 
 # RV32I Instruction Table 
-## (A sub-set of the Base Integer Instructions set)##
 
 ## R-Type Instructions
 
