@@ -290,5 +290,5 @@ This project demonstrates a complete implementation of a 5-stage pipelined RV32I
 
 # Author
 
-VBK  
-M.Tech – RISC-V Pipeline Design Project
+Varjula Balakrishna 
+M.Tech EIE – NIT Rourkela
