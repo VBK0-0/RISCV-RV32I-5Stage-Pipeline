@@ -1,294 +1,111 @@
 # 5-Stage Pipelined RISC-V Processor (RV32I)
 
----
+[![ISA: RV32I](https://img.shields.io/badge/ISA-RV32I-blue.svg)](https://riscv.org/)
+[![Language: Verilog](https://img.shields.io/badge/Language-Verilog-orange.svg)]()
+[![Simulation: Vivado](https://img.shields.io/badge/Simulation-Xilinx_Vivado-green.svg)]()
 
-# Introduction to RISC-V ISA
-
-## What is RISC-V?
-
-RISC-V (pronounced *risk-five*) is an open-standard Instruction Set Architecture (ISA) based on Reduced Instruction Set Computing (RISC) principles. Unlike proprietary ISAs, RISC-V is free and open, enabling researchers, students, and industries to design and implement custom processors without licensing restrictions.
-
-RISC-V defines the instruction set but does not define how the processor must be implemented. Therefore, it supports multiple microarchitectures such as:
-
-- Single-cycle processors  
-- Multi-cycle processors  
-- 5-stage pipelined processors  
-- Superscalar processors  
-- Out-of-order processors  
-
-This project implements a **5-stage pipelined processor based on the RV32I base integer ISA**.
+## 📌 Project Overview
+This repository contains a high-performance **5-stage pipelined RISC-V processor** (RV32I) designed to handle Data, Control, and Load-Use hazards in hardware. By integrating a sophisticated **Forwarding Unit** and **Hazard Detection Unit**, this processor achieves an ideal CPI of ~1 for sequential code.
 
 ---
 
-# RV32I Base Integer Instruction Set
+## 🏗️ Detailed Processor Architecture
 
-RV32I is the 32-bit base integer instruction set of RISC-V. It includes:
+Below is the complete datapath logic. This design integrates 14 critical units to ensure timing-accurate execution.
 
-- 32 General Purpose Registers (x0–x31)
-- Fixed 32-bit instruction length
-- Load/store architecture
-- Orthogonal and simple instruction formats
+### High-Fidelity Pipeline Schematic
+<div align="center">
+  <img src="./images/Architecture.png" width="8000" alt="Architecture">
+</div>
 
----
-
-## Register File
-
-| Register | ABI Name | Description |
-|----------|----------|-------------|
-| x0 | zero | Hardwired to 0 |
-| x1 | ra | Return address |
-| x2 | sp | Stack pointer |
-| x3 | gp | Global pointer |
-| x4 | tp | Thread pointer |
-| x5–x7 | t0–t2 | Temporaries |
-| x8 | s0/fp | Saved register / Frame pointer |
-| x9 | s1 | Saved register |
-| x10–x17 | a0–a7 | Function arguments |
-| x18–x27 | s2–s11 | Saved registers |
-| x28–x31 | t3–t6 | Temporaries |
+### The 14 Core Units
+1.  **Program Counter (PC):** Holds the address of the next instruction.
+2.  **Instruction Memory (IM):** Stores the 32-bit RV32I machine code.
+3.  **Control Unit (CU):** Decodes opcodes and generates signals (RegWrite, ALUSrc, etc.).
+4.  **Hazard Detection Unit:** Monitors Load-Use hazards and stalls the pipeline by freezing the PC/IFID.
+5.  **Register File:** Dual-read, single-write 32x32-bit register storage.
+6.  **Immediate Generator:** Extracts and sign-extends constants from I, S, B, U, and J instructions.
+7.  **ALU Control:** Translates `funct3` and `funct7` bits into specific ALU operations.
+8.  **ALU (Arithmetic Logic Unit):** Performs arithmetic (ADD, SUB) and logical (AND, OR) operations.
+9.  **Data Memory:** Stores program data; accessed during `lw` and `sw` operations.
+10. **Forwarding Unit:** Prevents RAW hazards by routing results from EX/MEM or MEM/WB back to ALU inputs.
+11. **IF/ID Register:** Holds the instruction and PC for the Decode stage.
+12. **ID/EX Register:** Passes decoded values and control signals to the Execute stage.
+13. **EX/MEM Register:** Passes ALU results and Store-data to the Memory stage.
+14. **MEM/WB Register:** Passes Memory/ALU results back to the Writeback stage.
 
 ---
 
-# RISC-V Instruction Formats 
+## 🛡️ Hazard Resolution Logic
 
-## R-Type Format (Register-Register)
+### 1. Data Hazards (Forwarding)
+The **Forwarding Unit** reroutes results directly to the ALU inputs, eliminating the need for stalls in most Register-Register instructions.
 
-```
-| funct7 | rs2 | rs1 | funct3 | rd | opcode |
-```
+### 2. Load-Use Hazards (Stalling)
+When an instruction reads a register being loaded by `lw`, the hardware inserts a "bubble" (NOP) to allow the memory read to complete.
 
-| Field  | Width (bits) |
-|---------|-------------|
-| funct7 | 7 |
-| rs2 | 5 |
-| rs1 | 5 |
-| funct3 | 3 |
-| rd | 5 |
-| opcode | 7 |
+### 3. Control Hazards (Flushing)
+For **JAL/JALR** and taken **Branches**, the hardware flushes the `IF/ID` register to prevent the execution of instructions in the delay slot.
 
 ---
 
-## I-Type Format (Immediate & Loads)
+## ⚙️ Supported RV32I Instruction Set
 
-```
-| imm[11:0] | rs1 | funct3 | rd | opcode |
-```
-
----
-
-## S-Type Format (Store)
-
-```
-| imm[11:5] | rs2 | rs1 | funct3 | imm[4:0] | opcode |
-```
-
----
-
-## B-Type Format (Branch)
-
-```
-| imm[12|10:5] | rs2 | rs1 | funct3 | imm[4:1|11] | opcode |
-```
-
----
-
-## U-Type Format (Upper Immediate)
-
-```
-| imm[31:12] | rd | opcode |
-```
-
----
-
-## J-Type Format (Jump)
-
-```
-| imm[20|10:1|11|19:12] | rd | opcode |
-```
-
----
-
-# RV32I Instruction Table 
-
-## R-Type Instructions
-
+### R-Type Instructions
 | Instruction | funct7 | funct3 | Opcode | Operation |
-|-------------|--------|--------|--------|-----------|
-| add | 0000000 | 000 | 0110011 | rd = rs1 + rs2 |
-| sub | 0100000 | 000 | 0110011 | rd = rs1 − rs2 |
-| and | 0000000 | 111 | 0110011 | rd = rs1 & rs2 |
-| or  | 0000000 | 110 | 0110011 | rd = rs1 \| rs2 |
-| slt | 0000000 | 010 | 0110011 | rd = (rs1 < rs2) |
+|:---|:---|:---|:---|:---|
+| `add` | `0000000` | `000` | `0110011` | `rd = rs1 + rs2` |
+| `sub` | `0100000` | `000` | `0110011` | `rd = rs1 - rs2` |
+| `and` | `0000000` | `111` | `0110011` | `rd = rs1 & rs2` |
+| `or`  | `0000000` | `110` | `0110011` | `rd = rs1 \| rs2` |
+| `slt` | `0000000` | `010` | `0110011` | `rd = (rs1 < rs2)` |
 
----
-
-## I-Type Instructions
-
+### I-Type Instructions
 | Instruction | funct3 | Opcode | Operation |
-|-------------|--------|--------|-----------|
-| addi | 000 | 0010011 | rd = rs1 + imm |
-| andi | 111 | 0010011 | rd = rs1 & imm |
-| ori  | 110 | 0010011 | rd = rs1 \| imm |
-| lw   | 010 | 0000011 | rd = Mem[rs1 + imm] |
+|:---|:---|:---|:---|
+| `addi` | `000` | `0010011` | `rd = rs1 + imm` |
+| `andi` | `111` | `0010011` | `rd = rs1 & imm` |
+| `ori`  | `110` | `0010011` | `rd = rs1 \| imm` |
+| `lw`   | `010` | `0000011` | `rd = Mem[rs1 + imm]` |
+| `jalr` | `000` | `1100111` | `rd = PC + 4; PC = rs1 + imm` |
+
+### S, B, & J-Type Instructions
+| Instruction | Type | Opcode | Operation |
+|:---|:---|:---|:---|
+| `sw`   | S | `0100011` | `Mem[rs1 + imm] = rs2` |
+| `beq`  | B | `1100011` | `if (rs1 == rs2) branch` |
+| `bne`  | B | `1100011` | `if (rs1 != rs2) branch` |
+| `jal`  | J | `1101111` | `rd = PC + 4; PC = PC + imm` |
 
 ---
 
-## S-Type Instructions
+## 🚀 Simulation & Verification
 
-| Instruction | funct3 | Opcode | Operation |
-|-------------|--------|--------|-----------|
-| sw | 010 | 0100011 | Mem[rs1 + imm] = rs2 |
+1.  Clone the repository and add the `.v` source files to your Vivado project.
+2.  Load the `test.hex` file into your instruction memory.
+3.  Run the testbench `tb_rv32i_pipeline.v`.
 
----
-
-## B-Type Instructions
-
-| Instruction | funct3 | Opcode | Operation |
-|-------------|--------|--------|-----------|
-| beq | 000 | 1100011 | if (rs1 == rs2) branch |
-| bne | 001 | 1100011 | if (rs1 != rs2) branch |
-
----
-
-# Project: 5-Stage Pipelined RISC-V Processor
-
-## Project Objective
-
-To design and implement a complete **5-stage pipelined RV32I processor** with hazard detection and forwarding mechanisms.
-
-Pipeline Structure:
-
-```
-IF → ID → EX → MEM → WB
-```
-
----
-
-# Pipeline Stages
-
-## 1. Instruction Fetch (IF)
-
-- Program Counter (PC)
-- Instruction Memory
-- PC + 4 Adder
-- Branch Target MUX
-
----
-
-## 2. Instruction Decode (ID)
-
-- Control Unit
-- Register File (32 × 32-bit)
-- Immediate Generator
-- Branch Comparator
-
----
-
-## 3. Execute (EX)
-
-- ALU Control Unit
-- Arithmetic Logic Unit (ALU)
-- ALU Source MUX
-- Branch Target Adder
-
----
-
-## 4. Memory Access (MEM)
-
-- Data Memory
-
----
-
-## 5. Write Back (WB)
-
-- Writeback MUX
-- Register File Write Port
-
----
-
-# Hazard Handling
-
-## Data Hazards (Forwarding Unit)
-
-| Condition | ForwardA / ForwardB |
-|------------|---------------------|
-| EX/MEM.rd == ID/EX.rs | 10 |
-| MEM/WB.rd == ID/EX.rs | 01 |
-| Otherwise | 00 |
-
----
-
-## Load-Use Hazard
-
-Detected when:
-
-```
-ID_EX.MemRead == 1
-AND
-(ID_EX.rd == IF_ID.rs1 OR IF_ID.rs2)
+**Hex Program Snippet:**
+```hex
+| Hex Instruction | Assembly Instruction | Description           |
+|-----------------|----------------------|-----------------------|
+| 00A00093        | addi x1, x0, 10      | x1 = 10               |
+| 01400113        | addi x2, x0, 20      | x2 = 20               |
+| 002081B3        | add x3, x1, x2       | x3 = x1 + x2          |
+| 00302023        | sw x3, 0(x0)         | Store x3 to memory[0] |
+| 00002203        | lw x4, 0(x0)         | Load memory[0] to x4  |
+| 001202B3        | add x5, x4, x1       | x5 = x4 + x1          |
+| 00228663        | beq x5, x2, 12       | Branch if x5 == x2    |
+| 00500313        | addi x6, x0, 5       | x6 = 5                |
+| 00108463        | beq x1, x1, 8        | Branch always         |
+| 06300313        | addi x6, x0, 99      | x6 = 99               |
+| 001303B3        | add x7, x6, x1       | x7 = x6 + x1          |
+| 0080046F        | jal x8, 8            | Jump and link         |
+| 00B00493        | addi x9, x0, 11      | x9 = 11               |
+| 00040513        | addi x10, x8, 0      | x10 = x8              |
 ```
 
-Action Taken:
-- Stall PC
-- Stall IF/ID register
-- Insert bubble in ID/EX
-
 ---
 
-## Control Hazard
-
-If branch is taken:
-- Flush IF/ID register
-- Update PC with branch target
-
----
-
-# Verification Programs
-
-| Program | Purpose |
-|----------|----------|
-| program_all.hex | Tests all instruction types |
-| program_no_hazard.hex | Ideal pipeline execution |
-| program_data_hazard.hex | Forwarding verification |
-| program_load_hazard.hex | Stall verification |
-| program_branch_taken.hex | Branch flush validation |
-| program_branch_not_taken.hex | Fall-through verification |
-| program_full_stress.hex | Combined hazard testing |
-
----
-
-# Performance Analysis
-
-- Ideal CPI ≈ 1 (after pipeline fill)
-- Load-use hazard introduces 1 stall cycle
-- Branch taken introduces 1 flush cycle
-- Forwarding reduces unnecessary stalls
-
----
-
-# Simulation Environment
-
-- Tool: Xilinx Vivado
-- Simulation Type: Behavioral Simulation
-- Observed Signals:
-  - PC
-  - Instruction
-  - ALU Result
-  - MemRead / MemWrite
-  - ForwardA / ForwardB
-  - Stall
-  - Flush
-  - Writeback Data
-
----
-
-# Conclusion
-
-This project demonstrates a complete implementation of a 5-stage pipelined RV32I processor with accurate hazard detection, forwarding logic, and branch handling. The design adheres strictly to RISC-V ISA specifications and verifies correct pipeline behavior across multiple hazard scenarios.
-
----
-
-# Author
-
-Varjula Balakrishna 
-M.Tech EIE – NIT Rourkela
+## 👨‍💻 Author
+**Varjula Balakrishna** M.Tech EIE – NIT Rourkela
