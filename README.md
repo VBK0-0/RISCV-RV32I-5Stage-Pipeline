@@ -15,7 +15,7 @@ Below is the complete datapath logic. This design integrates 14 critical units t
 
 ### High-Fidelity Pipeline Schematic
 <div align="center">
-  <img src="./images/Architecture.png" width="8000" alt="Architecture">
+  <img src="./images/Architecture.png" width="800" alt="Architecture">
 </div>
 
 ### The 14 Core Units
@@ -86,7 +86,7 @@ For **JAL/JALR** and taken **Branches**, the hardware flushes the `IF/ID` regist
 3.  Run the testbench `tb_rv32i_pipeline.v`.
 
 **Hex Program Snippet:**
-```hex
+
 | Hex Instruction | Assembly Instruction | Description           |
 |-----------------|----------------------|-----------------------|
 | 00A00093        | addi x1, x0, 10      | x1 = 10               |
@@ -103,7 +103,70 @@ For **JAL/JALR** and taken **Branches**, the hardware flushes the `IF/ID` regist
 | 0080046F        | jal x8, 8            | Jump and link         |
 | 00B00493        | addi x9, x0, 11      | x9 = 11               |
 | 00040513        | addi x10, x8, 0      | x10 = x8              |
-```
+
+---
+
+## 📊 Performance Verification: Hazard vs. No Hazard Comparison
+
+To verify the robustness of the **Hazard Detection** and **Forwarding** units, the processor was simulated in two states: 
+1. **Disabled Hazard Unit:** Resulting in data corruption and incorrect execution.
+2. **Enabled Hazard Unit:** Demonstrating seamless hardware-level resolution.
+
+### 1. Data Hazard Resolution (Forwarding)
+**Scenario:** `addi x1, x0, 10` followed by `add x3, x1, x2`. The `add` instruction requires the value of `x1` before it has been written back to the Register File.
+
+* **No Hazard Unit:** The ALU receives a stale value for `x1` (0 instead of 10), resulting in an incorrect `x3` calculation.
+* **With Hazard Unit (Forwarding):** The **Forwarding Unit** detects the RAW dependency and routes the result directly from the EX/MEM pipeline register to the ALU input.
+    * **🟥 Red Boxes:** Show the stale `0` values entering the ALU.
+    * **🟦 Blue Boxes:** Show the correct values (`10`, `20`) being successfully forwarded into the ALU inputs.
+
+<div align="center">
+  <img src="./images/DataHazard_Broken.png" width="800" alt="No Hazard Unit - Data Hazard">
+  <br>
+  <img src="./images/DataHazard_Fixed.png" width="800" alt="With Hazard Unit - Data Forwarding">
+</div>
+
+---
+
+### 2. Load-Use Hazard Resolution (Stalling)
+**Scenario:** `lw x4, 0(x0)` followed by `add x5, x4, x1`. Since the data for `x4` isn't available until the end of the Memory stage, forwarding alone isn't enough.
+
+* **No Hazard Unit:** The pipeline continues blindly, and the `add` instruction executes using invalid/garbage data.
+* **With Hazard Unit (Stalling):** The hardware detects the `lw` dependency, freezes the **Program Counter (PC)**, and inserts a NOP (bubble) to allow memory to catch up.
+    * **🟥 Red Boxes:** Show the PC incrementing without waiting, leading to a garbage ALU result.
+    * **🟦 Blue Boxes:** Show the **PC** remaining constant for two consecutive clock cycles (the stall) and the correct data (`30`) eventually entering the ALU.
+
+<div align="center">
+  <img src="./images/LoadUse_Broken.png" width="800" alt="No Hazard Unit - Load-Use Hazard">
+  <br>
+  <img src="./images/LoadUse_Fixed.png" width="800" alt="With Hazard Unit - Load-Use Stalling">
+</div>
+
+---
+
+### 3. Control Hazard Resolution (Branch Flush)
+**Scenario:** `beq x1, x1, 8` (Branch Always). The processor sequentially fetches the next instruction (`addi x6, x0, 99`) before the branch is fully resolved in the Execute stage.
+
+* **No Hazard Unit:** The "victim" instruction (`addi x6`) passes through the pipeline, incorrectly writing **99** to register `x6`.
+* **With Hazard Unit (Flushing):** Once the branch is confirmed as "Taken," the Hazard Unit asserts the **`id_ex_flush`** signal, clearing the control bits of the incorrectly fetched instruction.
+    * **🟥 Red Boxes:** Show the `reg_write_out` signal active (`1`), allowing the wrong instruction to corrupt the register file.
+    * **🟦 Blue Boxes:** Show the `reg_write_out` signal forced to `0` at the Writeback stage. The instruction is successfully flushed, ensuring no state change occurs.
+
+<div align="center">
+  <img src="./images/ControlHazard_Broken.png" width="800" alt="No Hazard Unit - Control Hazard">
+  <br>
+  <img src="./images/ControlHazard_Fixed.png" width="800" alt="With Hazard Unit - Branch Flushing">
+</div>
+
+---
+
+### 📈 Summary Table
+
+| Hazard Type | Impact without Hazard Unit | Resolution with Hazard Unit | Hardware Mechanism |
+| :--- | :--- | :--- | :--- |
+| **RAW (Data)** | Stale data used in ALU | Real-time result routing | Forwarding Unit |
+| **Load-Use** | Execution of invalid data | 1-Cycle Pipeline "Bubble" | PC/IFID Freeze |
+| **Control** | Execution of wrong-path code | Pipeline Flush (NOP) | Branch/Jump Resolution (`id_ex_flush`) |
 
 ---
 
